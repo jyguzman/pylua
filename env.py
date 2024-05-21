@@ -8,6 +8,10 @@ class Env:
         self.level = 0
         self.symbol_table = {self.level: global_table}
 
+    def get(self, name: str):
+        level = self.get_level_of_symbol(name)
+        return None if level == -1 else self.symbol_table[level][name]
+
     def set(self, name: str, val: Any, is_local: bool = True):
         if is_local:
             self.symbol_table[self.level][name] = val

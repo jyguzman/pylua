@@ -5,15 +5,15 @@ import Ast
 
 
 class Parser:
-    def __init__(self, source='', tokens: List[Token] = None):
-        if source and tokens:
+    def __init__(self, source: str = None, tokens: List[Token] = None):
+        if source is not None and tokens is not None:
             print('Parser requires either source string of list of tokens, not both.')
             exit(1)
 
-        if source:
+        if source is not None:
             self.tokens = Lexer(source).lex()
 
-        if tokens:
+        if tokens is not None:
             self.tokens = tokens
 
         self.pos: int = 0
@@ -110,12 +110,11 @@ class Parser:
     def parse_primary(self):
         if self.accept(TokenType.NUMBER, TokenType.STRING,
                        TokenType.FALSE, TokenType.TRUE):
-            self.advance()
-            return Ast.Literal(self.previous().literal)
+            return Ast.Literal(self.advance().literal)
         elif self.accept(TokenType.IDENT):
             if self.peek(1).token_type == TokenType.LPAREN:
                 return self.parse_function_call()
-            return Ast.Identifier(self.previous())
+            return Ast.Identifier(self.advance())
         elif self.accept(TokenType.LPAREN):
             self.advance()
             expr = Ast.GroupedExpr(self.parse_expression())
@@ -127,7 +126,7 @@ class Parser:
             print(f'Invalid token {self.peek()}')
             exit(1)
 
-    def parse_function_def(self) -> Ast.FunctionExpr:
+    def parse_function_def(self) -> Ast.Function:
         self.expect(TokenType.FUNCTION)
         name = ''
         if self.accept(TokenType.IDENT):
@@ -138,15 +137,15 @@ class Parser:
         while not self.accept(TokenType.RPAREN):
             self.expect(TokenType.IDENT)
             params.append(self.previous().lexeme)
-            if self.peek(1).token_type != TokenType.RPAREN:
+            if not self.accept(TokenType.RPAREN):
                 self.expect(TokenType.COMMA)
         self.expect(TokenType.RPAREN)
 
         body = self.parse_block()
         self.expect(TokenType.END)
-        return Ast.FunctionExpr(name, params, body)
+        return Ast.Function(name, params, body)
 
-    def parse_function_call(self) -> Ast.FunctionCallExpr:
+    def parse_function_call(self) -> Ast.FunctionCall:
         self.expect(TokenType.IDENT)
         name = self.previous().lexeme
 
@@ -154,11 +153,11 @@ class Parser:
         args = []
         while not self.accept(TokenType.RPAREN):
             args.append(self.parse_expression())
-            if self.peek(1).token_type != TokenType.RPAREN:
+            if not self.accept(TokenType.RPAREN):
                 self.expect(TokenType.COMMA)
         self.expect(TokenType.RPAREN)
 
-        return Ast.FunctionCallExpr(name, args)
+        return Ast.FunctionCall(name, args)
 
     def parse_program(self) -> Ast.Program:
         blocks = []
@@ -166,15 +165,33 @@ class Parser:
             blocks.append(self.parse_block())
         return Ast.Program(blocks)
 
-    def parse_statement(self) -> Ast.Statement:
-        if self.accept(TokenType.IDENT, TokenType.LOCAL):
-
-
     def parse_block(self) -> Ast.Block:
         statements = []
-        while not self.accept(TokenType.ELSE, TokenType.END):
+        while not self.accept(TokenType.ELSE, TokenType.END, TokenType.EOF):
             statements.append(self.parse_statement())
         return Ast.Block(statements)
+
+    def parse_statement(self):
+        if self.accept(TokenType.LOCAL):
+            return self.parse_assignment()
+        if self.accept(TokenType.IDENT):
+            if self.peek(1).token_type == TokenType.LPAREN:
+                return self.parse_function_call()
+            return self.parse_assignment()
+        if self.accept(TokenType.RETURN):
+            return self.parse_return_statement()
+        if self.accept(TokenType.WHILE):
+            return self.parse_while_loop()
+        if self.accept(TokenType.FOR):
+            return self.parse_for_loop()
+        if self.accept(TokenType.IF):
+            return self.parse_if_statement()
+        if self.accept(TokenType.FUNCTION):
+            return self.parse_function_def()
+        return self.parse_expression_statement()
+
+    def parse_expression_statement(self):
+        return Ast.ExpressionStatement(self.parse_expression())
 
     def parse_if_statement(self) -> Ast.IfStatement:
         self.expect(TokenType.IF)
@@ -239,5 +256,3 @@ class Parser:
         self.expect(TokenType.RETURN)
         value = self.parse_expression()
         return Ast.ReturnStatement(value)
-
-

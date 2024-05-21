@@ -13,7 +13,8 @@ class Statement(Node):
 
 
 class Expression(Node):
-    pass
+    def accept(self, visitor: 'Visitor'):
+        pass
 
 
 class Identifier(Node):
@@ -43,10 +44,22 @@ class Program(Node):
     def __init__(self, chunks: List[Chunk]):
         self.chunks = chunks
 
+    def __str__(self):
+        return '\n'.join([str(c) for c in self.chunks])
+
+
+class ExpressionStatement(Statement):
+    def __init__(self, expr: Expression):
+        self.expr = expr
+
+    def __str__(self):
+        return f'ExprStmt({str(self.expr)})'
+
 
 class AssignStatement(Statement):
     def __init__(self, ident: Identifier, value: Expression, is_local: bool):
         self.ident = ident
+        self.name = ident.token.lexeme
         self.value = value
         self.is_local = is_local
 
@@ -130,7 +143,7 @@ class GroupedExpr(Expression):
         return f'Grouping({str(self.expr)})'
 
 
-class FunctionExpr(Expression):
+class Function(Expression, Statement):
     def __init__(self, name: str, params: List[str], body: Block):
         self.name = name
         self.params = params
@@ -140,13 +153,14 @@ class FunctionExpr(Expression):
         return f'Function({self.name}, {self.params}, {self.body})'
 
 
-class FunctionCallExpr(Expression):
+class FunctionCall(Expression, Statement):
     def __init__(self, name: str, args: List[Expression]):
         self.name = name
         self.args = args
 
     def __str__(self):
-        return f'FunCall({self.name}, {self.args})'
+        args_str = ', '.join([str(a) for a in self.args])
+        return f'FunCall({self.name}, {args_str})'
 
 
 class Visitor:
@@ -158,5 +172,66 @@ class Visitor:
         return literal.value
 
     def visit_binary_expr(self, expr: BinaryExpr):
+        left, op, right = expr.left, expr.op.lexeme, expr.right
+        if op == '+':
+            left = left.accept(self)
+            right = right.accept(self)
+
+            if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
+                print(f"Operands for '{op} must be of type number")
+                exit(1)
+
+            return left + right
+        elif op == '-':
+            left = left.accept(self)
+            right = right.accept(self)
+
+            if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
+                print(f"Operands for '{op} must be of type number")
+                exit(1)
+
+            return left - right
+        elif op == '*':
+            left = left.accept(self)
+            right = right.accept(self)
+
+            if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
+                print(f"Operands for '{op} must be of type number")
+                exit(1)
+
+            return left * right
+        elif op == '/':
+            left = left.accept(self)
+            right = right.accept(self)
+
+            if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
+                print(f"Operands for '{op} must be of type number")
+                exit(1)
+
+            return left / right
+        elif op == '..':
+            left = left.accept(self)
+            right = right.accept(self)
+
+            if not isinstance(left, str) or not isinstance(right, str):
+                print(f"Operands for '{op} must be of type string")
+                exit(1)
+
+            return left + right
+
+    def visit_assignment(self, stmt: AssignStatement):
+        self.env.set(stmt.name, stmt.value.accept(self), stmt.is_local)
+
+    def visit_block(self, block: Block):
+        self.env.add_level()
+        for stmt in block.statements:
+            stmt.accept(self)
+        self.env.pop_level()
+
+    def visit_while_loop(self, wl: WhileLoop):
+        pass
+
+    def visit_for_loop(self, fl: ForLoop):
+
         pass
 
