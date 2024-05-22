@@ -1,12 +1,12 @@
-from typing import Any
+from typing import Any, Dict
 
 
 class Env:
     def __init__(self, global_table: dict = None):
         if global_table is None:
             global_table = {}
-        self.level = 0
-        self.symbol_table = {self.level: global_table}
+        self.level: int = 0
+        self.symbol_table: Dict[int, dict] = {self.level: global_table}
 
     def get(self, name: str):
         level = self.get_level_of_symbol(name)

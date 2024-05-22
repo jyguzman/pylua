@@ -171,7 +171,7 @@ class Parser:
             statements.append(self.parse_statement())
         return Ast.Block(statements)
 
-    def parse_statement(self):
+    def parse_statement(self) -> Ast.Statement:
         if self.accept(TokenType.LOCAL):
             return self.parse_assignment()
         if self.accept(TokenType.IDENT):

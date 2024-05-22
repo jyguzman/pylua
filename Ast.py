@@ -5,6 +5,9 @@ from env import Env
 
 class Node:
     def accept(self, visitor: 'Visitor'):
+        if self is None:
+            print("Calling accept on null node")
+            exit(1)
         pass
 
 
@@ -20,12 +23,13 @@ class Expression(Node):
 class Identifier(Node):
     def __init__(self, token: Token):
         self.token = token
+        self.name = token.lexeme
 
     def __str__(self):
-        return f'Ident({self.token.lexeme})'
+        return f'Ident({self.name})'
 
     def accept(self, visitor: 'Visitor' = None):
-        return self.token.lexeme
+        return visitor.visit_identifier(self)
 
 
 class Chunk(Node):
@@ -67,7 +71,7 @@ class AssignStatement(Statement):
         return f'Assignment({str(self.ident)}, {str(self.value)}, local: {self.is_local})'
 
 
-class ReturnStatement:
+class ReturnStatement(Statement):
     def __init__(self, value: Expression):
         self.value = value
 
@@ -134,13 +138,19 @@ class UnaryExpr(Expression):
     def __str__(self):
         return f'Unary({self.op.token_type}, {self.operand})'
 
+    def accept(self, visitor: 'Visitor'):
+        return visitor.visit_unary_expression(self)
+
 
 class GroupedExpr(Expression):
-    def __init__(self, expr: Expression):
-        self.expr = expr
+    def __init__(self, inner: Expression):
+        self.inner = inner
 
     def __str__(self):
-        return f'Grouping({str(self.expr)})'
+        return f'Grouping({str(self.inner)})'
+
+    def accept(self, visitor: 'Visitor'):
+        return visitor.visit_grouped_expression(self)
 
 
 class Function(Expression, Statement):
@@ -168,8 +178,11 @@ class Visitor:
         self.env = env
 
     @staticmethod
-    def visit_literal(literal: Literal) -> Any:
-        return literal.value
+    def visit_literal(le: Literal) -> Any:
+        return le.value
+
+    def visit_grouped_expression(self, ge: GroupedExpr):
+        return ge.inner.accept(self)
 
     def visit_binary_expr(self, expr: BinaryExpr):
         left, op, right = expr.left, expr.op.lexeme, expr.right
@@ -182,7 +195,8 @@ class Visitor:
                 exit(1)
 
             return left + right
-        elif op == '-':
+
+        if op == '-':
             left = left.accept(self)
             right = right.accept(self)
 
@@ -191,7 +205,8 @@ class Visitor:
                 exit(1)
 
             return left - right
-        elif op == '*':
+
+        if op == '*':
             left = left.accept(self)
             right = right.accept(self)
 
@@ -200,7 +215,8 @@ class Visitor:
                 exit(1)
 
             return left * right
-        elif op == '/':
+
+        if op == '/':
             left = left.accept(self)
             right = right.accept(self)
 
@@ -209,7 +225,18 @@ class Visitor:
                 exit(1)
 
             return left / right
-        elif op == '..':
+
+        if op == '%':
+            left = left.accept(self)
+            right = right.accept(self)
+
+            if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
+                print(f"Operands for '{op} must be of type number")
+                exit(1)
+
+            return left % right
+
+        if op == '..':
             left = left.accept(self)
             right = right.accept(self)
 
@@ -219,8 +246,48 @@ class Visitor:
 
             return left + right
 
+        if op == 'and':
+            left = left.accept(self)
+            right = right.accept(self)
+
+            return left and right
+
+        print(f"Unrecognized binary operator '{op}'")
+        exit(1)
+
+    def visit_unary_expression(self, ue: UnaryExpr):
+        op = ue.op.lexeme
+        operand = ue.operand.accept(self)
+
+        if op == '#':
+            if not isinstance(operand, str):
+                print("Operand for '#' must be of type string.")
+                exit(1)
+            return len(operand)
+
+        if op == '-':
+            if not isinstance(operand, (int, float)):
+                print("Operand for '-' must be of type number.")
+                exit(1)
+            return -operand
+
+        if op == 'not':
+            if operand in (True, None):
+                return False
+            return True
+
+        print(f"Unrecognized unary operator '{op}'")
+        exit(1)
+
     def visit_assignment(self, stmt: AssignStatement):
         self.env.set(stmt.name, stmt.value.accept(self), stmt.is_local)
+
+    def visit_identifier(self, ident: Identifier):
+        value = self.env.get(ident.name)
+        if value is None:
+            print(f"Identifier {ident.name} not previously declared")
+            exit(1)
+        return value
 
     def visit_block(self, block: Block):
         self.env.add_level()
@@ -229,9 +296,19 @@ class Visitor:
         self.env.pop_level()
 
     def visit_while_loop(self, wl: WhileLoop):
-        pass
+        condition_result = wl.condition.accept(self)
+        while condition_result:
+            wl.body.accept(self)
+            condition_result = wl.condition.accept(self)
 
     def visit_for_loop(self, fl: ForLoop):
-
         pass
 
+    def visit_if_stmt(self, ifs: IfStatement):
+        condition_result = ifs.condition.accept(self)
+        if condition_result:
+            ifs.true_block.accept(self)
+            return
+
+        if ifs.else_block is not None:
+            ifs.else_block.accept(self)
