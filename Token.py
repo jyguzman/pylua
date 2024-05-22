@@ -1,4 +1,4 @@
-from enum import Enum, auto
+from enum import Enum
 from dataclasses import dataclass
 from typing import Any
 
@@ -24,12 +24,12 @@ class TokenType(Enum):
     DOTDOT = 'DOTDOT'
     SLASH = 'SLASH'
     EQUALS = 'EQUALS'
+    EQUAL_EQUAL = 'EQUAL_EQUAL'
     NEQ = 'NEQ'
     GREATER = 'GREATER'
     GEQ = 'GEQ'
     LESS = 'LESS'
     LEQ = 'LEQ'
-    ASSIGN = 'ASSIGNMENT'
     PERCENT = 'PERCENT'
     AND = 'AND'
     OR = 'OR'
@@ -73,7 +73,7 @@ class Token:
     lexeme: str
     literal: Any
 
-    def __str__(self):
+    def __repr__(self):
         literal_str = ')'
         if self.literal:
             literal_str = f', literal: {self.literal})'

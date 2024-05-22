@@ -63,7 +63,7 @@ class Lexer:
 
         lexeme = ''.join(lexeme)
         self.advance()
-        return Token(self.pos, start_line, start_col, TokenType.STRING, lexeme, f'"{lexeme}"')
+        return Token(self.pos, start_line, start_col, TokenType.STRING, f'"{lexeme}"', lexeme)
 
     def lex_ident(self):
         lexeme = []
@@ -156,9 +156,9 @@ class Lexer:
         elif c == '=':
             if self.peek(1) == '=':
                 self.advance()
-                token = Token(self.pos, self.line, self.col, TokenType.EQUALS, '==', None)
+                token = Token(self.pos, self.line, self.col, TokenType.EQUAL_EQUAL, '==', None)
             else:
-                token = Token(self.pos, self.line, self.col, TokenType.ASSIGN, '=', None)
+                token = Token(self.pos, self.line, self.col, TokenType.EQUALS, '=', None)
             self.advance()
         elif c == '~':
             if self.peek(1) == '=':
@@ -174,7 +174,7 @@ class Lexer:
         elif c == '-':
             if self.peek(1) == '-':
                 while c != '\n':
-                    self.advance()
+                    c = self.advance()
                 return self.match()
             else:
                 token = Token(self.pos, self.line, self.col, TokenType.MINUS, '-', None)

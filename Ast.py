@@ -1,14 +1,12 @@
 from Token import Token
-from typing import Any, List
+from typing import Any, List, Union, Deque
 from env import Env
+from collections import deque
 
 
 class Node:
     def accept(self, visitor: 'Visitor'):
-        if self is None:
-            print("Calling accept on null node")
-            exit(1)
-        pass
+        raise NotImplementedError(f"accept() not implemented for {self.__class__.__name__}")
 
 
 class Statement(Node):
@@ -16,67 +14,73 @@ class Statement(Node):
 
 
 class Expression(Node):
-    def accept(self, visitor: 'Visitor'):
-        pass
+    pass
 
 
 class Identifier(Node):
-    def __init__(self, token: Token):
-        self.token = token
-        self.name = token.lexeme
+    def __init__(self, name: str):
+        self.name = name
 
-    def __str__(self):
-        return f'Ident({self.name})'
+    def __repr__(self):
+        return f'Identifier({self.name})'
 
     def accept(self, visitor: 'Visitor' = None):
         return visitor.visit_identifier(self)
 
 
 class Chunk(Node):
-    def __init__(self, statements: List[Statement]):
+    def __init__(self, statements: Union[List[Statement], Deque[Statement]]):
         self.statements = statements
+        if isinstance(self.statements, List):
+            self.statements = deque(statements)
 
-    def __str__(self):
-        return ', '.join([str(stmt) for stmt in self.statements])
+    def __repr__(self):
+        return '[' + ', '.join([str(s) for s in self.statements]) + ']'
+
+    def accept(self, visitor: 'Visitor'):
+        pass
 
 
 class Block(Chunk):
-    pass
+    def accept(self, visitor: 'Visitor'):
+        return visitor.visit_block(self)
 
 
 class Program(Node):
-    def __init__(self, chunks: List[Chunk]):
-        self.chunks = chunks
+    def __init__(self, block: List[Block]):
+        self.blocks = block
 
-    def __str__(self):
-        return '\n'.join([str(c) for c in self.chunks])
+    def __repr__(self):
+        return '\n'.join([str(b) for b in self.blocks])
 
-
-class ExpressionStatement(Statement):
-    def __init__(self, expr: Expression):
-        self.expr = expr
-
-    def __str__(self):
-        return f'ExprStmt({str(self.expr)})'
+    def accept(self, visitor: 'Visitor'):
+        for block in self.blocks:
+            block.accept(visitor)
 
 
 class AssignStatement(Statement):
     def __init__(self, ident: Identifier, value: Expression, is_local: bool):
         self.ident = ident
-        self.name = ident.token.lexeme
+        self.name = ident.name
         self.value = value
         self.is_local = is_local
 
-    def __str__(self):
-        return f'Assignment({str(self.ident)}, {str(self.value)}, local: {self.is_local})'
+    def __repr__(self):
+        return f'Assignment({self.ident}, {self.value}, local: {self.is_local})'
+
+    def accept(self, visitor: 'Visitor'):
+        visitor.visit_assignment(self)
 
 
 class ReturnStatement(Statement):
     def __init__(self, value: Expression):
         self.value = value
 
-    def __str__(self):
-        return f'ReturnStmt({str(self.value)})'
+    def __repr__(self):
+        return f'ReturnStmt({self.value})'
+
+    def accept(self, visitor: 'Visitor'):
+        return visitor.visit_return_statement(self)
 
 
 class IfStatement(Statement):
@@ -85,8 +89,11 @@ class IfStatement(Statement):
         self.true_block = true_block
         self.else_block = else_block
 
-    def __str__(self):
-        return f'IfStmt({str(self.condition)}, {str(self.true_block)}, {str(self.else_block)})'
+    def __repr__(self):
+        return f'IfStmt({self.condition}, {self.true_block}, {self.else_block})'
+
+    def accept(self, visitor: 'Visitor'):
+        visitor.visit_if_stmt(self)
 
 
 class WhileLoop(Statement):
@@ -94,8 +101,11 @@ class WhileLoop(Statement):
         self.condition = condition
         self.body = body
 
-    def __str__(self):
-        return f'WhileLoop({str(self.condition)}, {str(self.body)})'
+    def __repr__(self):
+        return f'WhileLoop({self.condition}, {self.body})'
+
+    def accept(self, visitor: 'Visitor'):
+        visitor.visit_while_loop(self)
 
 
 class ForLoop(Statement):
@@ -105,15 +115,18 @@ class ForLoop(Statement):
         self.step = step
         self.body = body
 
-    def __str__(self):
-        return f'ForLoop({str(self.initializer)}, {str(self.stop)}, {str(self.step)}, {str(self.body)})'
+    def __repr__(self):
+        return f'ForLoop({self.initializer}, {self.stop}, {self.step}, {self.body})'
+
+    def accept(self, visitor: 'Visitor'):
+        visitor.visit_for_loop(self)
 
 
 class Literal(Expression):
     def __init__(self, value: Any):
         self.value = value
 
-    def __str__(self):
+    def __repr__(self):
         return f'Literal({self.value})'
 
     def accept(self, visitor: 'Visitor'):
@@ -126,8 +139,11 @@ class BinaryExpr(Expression):
         self.op = op
         self.right = right
 
-    def __str__(self):
+    def __repr__(self):
         return f'Binary({self.left}, {self.op.token_type}, {self.right})'
+
+    def accept(self, visitor: 'Visitor'):
+        return visitor.visit_binary_expr(self)
 
 
 class UnaryExpr(Expression):
@@ -135,7 +151,7 @@ class UnaryExpr(Expression):
         self.op = op
         self.operand = operand
 
-    def __str__(self):
+    def __repr__(self):
         return f'Unary({self.op.token_type}, {self.operand})'
 
     def accept(self, visitor: 'Visitor'):
@@ -146,21 +162,25 @@ class GroupedExpr(Expression):
     def __init__(self, inner: Expression):
         self.inner = inner
 
-    def __str__(self):
-        return f'Grouping({str(self.inner)})'
+    def __repr__(self):
+        return f'Grouping({self.inner})'
 
     def accept(self, visitor: 'Visitor'):
         return visitor.visit_grouped_expression(self)
 
 
 class Function(Expression, Statement):
-    def __init__(self, name: str, params: List[str], body: Block):
-        self.name = name
+    def __init__(self, params: List[str], body: Block, name: str = None, is_local: bool = False):
         self.params = params
         self.body = body
+        self.name = name
+        self.is_local = is_local
 
-    def __str__(self):
+    def __repr__(self):
         return f'Function({self.name}, {self.params}, {self.body})'
+
+    def accept(self, visitor: 'Visitor'):
+        visitor.visit_function_def(self)
 
 
 class FunctionCall(Expression, Statement):
@@ -168,13 +188,16 @@ class FunctionCall(Expression, Statement):
         self.name = name
         self.args = args
 
-    def __str__(self):
+    def __repr__(self):
         args_str = ', '.join([str(a) for a in self.args])
-        return f'FunCall({self.name}, {args_str})'
+        return f'{self.__class__.__name__}({self.name}, {args_str})'
+
+    def accept(self, visitor: 'Visitor'):
+        return visitor.visit_function_call(self)
 
 
 class Visitor:
-    def __init__(self, env: Env = Env({})):
+    def __init__(self, env: Env = Env()):
         self.env = env
 
     @staticmethod
@@ -186,7 +209,7 @@ class Visitor:
 
     def visit_binary_expr(self, expr: BinaryExpr):
         left, op, right = expr.left, expr.op.lexeme, expr.right
-        if op == '+':
+        if op in ('+', '-', '*',  '/', '%'):
             left = left.accept(self)
             right = right.accept(self)
 
@@ -194,47 +217,34 @@ class Visitor:
                 print(f"Operands for '{op} must be of type number")
                 exit(1)
 
-            return left + right
+            return {
+                '+': left + right,
+                '-': left - right,
+                '*': left * right,
+                '/': left + right,
+                '%': left % right,
+            }[op]
 
-        if op == '-':
+        if op in ('==', '~=', '<', '<=', '>', '>='):
             left = left.accept(self)
             right = right.accept(self)
 
-            if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
-                print(f"Operands for '{op} must be of type number")
+            if not isinstance(left, (int, float, str)) or not isinstance(right, (int, float, str)):
+                print(f"Operands for '{op}' must be of type number or string")
                 exit(1)
 
-            return left - right
-
-        if op == '*':
-            left = left.accept(self)
-            right = right.accept(self)
-
-            if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
-                print(f"Operands for '{op} must be of type number")
+            if type(left) is not type(right):
+                print(f"Operands for '{op}' must be both of type number or string")
                 exit(1)
 
-            return left * right
-
-        if op == '/':
-            left = left.accept(self)
-            right = right.accept(self)
-
-            if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
-                print(f"Operands for '{op} must be of type number")
-                exit(1)
-
-            return left / right
-
-        if op == '%':
-            left = left.accept(self)
-            right = right.accept(self)
-
-            if not isinstance(left, (int, float)) or not isinstance(right, (int, float)):
-                print(f"Operands for '{op} must be of type number")
-                exit(1)
-
-            return left % right
+            return {
+                '==': left == right,
+                '~=': left != right,
+                '<': left < right,
+                '<=': left <= right,
+                '>': left > right,
+                '>=': left >= right
+            }[op]
 
         if op == '..':
             left = left.accept(self)
@@ -250,7 +260,9 @@ class Visitor:
             left = left.accept(self)
             right = right.accept(self)
 
-            return left and right
+            if left in (None, False) or right in (None, False):
+                return False
+            return True
 
         print(f"Unrecognized binary operator '{op}'")
         exit(1)
@@ -269,18 +281,20 @@ class Visitor:
             if not isinstance(operand, (int, float)):
                 print("Operand for '-' must be of type number.")
                 exit(1)
+
             return -operand
 
         if op == 'not':
-            if operand in (True, None):
-                return False
-            return True
+            return False if operand in (True, None) else True
 
         print(f"Unrecognized unary operator '{op}'")
         exit(1)
 
     def visit_assignment(self, stmt: AssignStatement):
         self.env.set(stmt.name, stmt.value.accept(self), stmt.is_local)
+
+    def visit_return_statement(self, rs: ReturnStatement):
+        return rs.value.accept(self)
 
     def visit_identifier(self, ident: Identifier):
         value = self.env.get(ident.name)
@@ -291,9 +305,14 @@ class Visitor:
 
     def visit_block(self, block: Block):
         self.env.add_level()
+        return_value = None
         for stmt in block.statements:
+            if isinstance(stmt, ReturnStatement):
+                return_value = stmt.accept(self)
+                break
             stmt.accept(self)
         self.env.pop_level()
+        return return_value
 
     def visit_while_loop(self, wl: WhileLoop):
         condition_result = wl.condition.accept(self)
@@ -304,11 +323,37 @@ class Visitor:
     def visit_for_loop(self, fl: ForLoop):
         pass
 
-    def visit_if_stmt(self, ifs: IfStatement):
-        condition_result = ifs.condition.accept(self)
+    def visit_if_stmt(self, if_stmt: IfStatement):
+        condition_result = if_stmt.condition.accept(self)
+
         if condition_result:
-            ifs.true_block.accept(self)
+            if_stmt.true_block.accept(self)
             return
 
-        if ifs.else_block is not None:
-            ifs.else_block.accept(self)
+        if if_stmt.else_block is not None:
+            if_stmt.else_block.accept(self)
+
+    def visit_function_def(self, fn: Function):
+        if fn.name is None:
+            return fn
+        self.env.set(fn.name, fn, fn.is_local)
+        return fn
+
+    def visit_function_call(self, fc: FunctionCall):
+        fn: Function = self.env.get(fc.name)
+
+        if fn is None:
+            print(f"Function '{fc.name}' not previously declared")
+            exit(1)
+
+        if len(fc.args) != len(fn.params):
+            print(f"Incorrect number of arguments for '{fc.name}'")
+            exit(1)
+
+        args, params = fc.args, fn.params
+        body = fn.body.statements.copy()
+        for i in range(len(args)):
+            body.appendleft(AssignStatement(Identifier(params[i]), args[i], True))
+
+        return Block(body).accept(self)
+

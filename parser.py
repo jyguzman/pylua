@@ -47,7 +47,7 @@ class Parser:
             exit(1)
 
     def parse_identifier(self):
-        return Ast.Identifier(self.peek())
+        return Ast.Identifier(self.peek().lexeme)
 
     def parse_expression(self) -> Ast.Expression:
         return self.parse_or()
@@ -114,7 +114,7 @@ class Parser:
         elif self.accept(TokenType.IDENT):
             if self.peek(1).token_type == TokenType.LPAREN:
                 return self.parse_function_call()
-            return Ast.Identifier(self.advance())
+            return Ast.Identifier(self.advance().lexeme)
         elif self.accept(TokenType.LPAREN):
             self.advance()
             expr = Ast.GroupedExpr(self.parse_expression())
@@ -143,7 +143,7 @@ class Parser:
 
         body = self.parse_block()
         self.expect(TokenType.END)
-        return Ast.Function(name, params, body)
+        return Ast.Function(params, body, name)
 
     def parse_function_call(self) -> Ast.FunctionCall:
         self.expect(TokenType.IDENT)
@@ -188,10 +188,8 @@ class Parser:
             return self.parse_if_statement()
         if self.accept(TokenType.FUNCTION):
             return self.parse_function_def()
-        return self.parse_expression_statement()
-
-    def parse_expression_statement(self):
-        return Ast.ExpressionStatement(self.parse_expression())
+        print(f'Unrecognized token {self.peek()}')
+        exit(1)
 
     def parse_if_statement(self) -> Ast.IfStatement:
         self.expect(TokenType.IF)
@@ -245,9 +243,9 @@ class Parser:
             self.advance()
 
         self.expect(TokenType.IDENT)
-        ident = Ast.Identifier(self.previous())
+        ident = Ast.Identifier(self.previous().lexeme)
 
-        self.expect(TokenType.ASSIGN)
+        self.expect(TokenType.EQUALS)
         value = self.parse_expression()
 
         return Ast.AssignStatement(ident, value, is_local)

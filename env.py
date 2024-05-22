@@ -2,11 +2,12 @@ from typing import Any, Dict
 
 
 class Env:
-    def __init__(self, global_table: dict = None):
-        if global_table is None:
-            global_table = {}
-        self.level: int = 0
-        self.symbol_table: Dict[int, dict] = {self.level: global_table}
+    def __init__(self):
+        self.level: int = -1
+        self.symbol_table: Dict[int, dict] = {}
+
+    def __repr__(self):
+        return str(self.symbol_table)
 
     def get(self, name: str):
         level = self.get_level_of_symbol(name)
@@ -33,8 +34,9 @@ class Env:
         self.symbol_table[self.level] = {}
 
     def pop_level(self):
-        del self.symbol_table[self.level]
-        self.level -= 1
+        if self.level > 0:
+            del self.symbol_table[self.level]
+            self.level -= 1
 
     def has_symbol(self, name: str):
         return self.get_level_of_symbol(name) != -1
