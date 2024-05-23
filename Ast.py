@@ -221,7 +221,7 @@ class Visitor:
                 '+': left + right,
                 '-': left - right,
                 '*': left * right,
-                '/': left + right,
+                '/': left / right,
                 '%': left % right,
             }[op]
 

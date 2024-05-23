@@ -128,7 +128,7 @@ class Parser:
 
     def parse_function_def(self) -> Ast.Function:
         self.expect(TokenType.FUNCTION)
-        name = ''
+        name = None
         if self.accept(TokenType.IDENT):
             name = self.advance().lexeme
 
